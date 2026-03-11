@@ -6,6 +6,8 @@ Sayfa açılır açılmaz kendi kendine oynayan, HTML/CSS/JavaScript ile gelişt
 
 Bu proje, klasik Snake oyununun tamamen otomatik oynayan bir versiyonudur. Oyuncu girişine ihtiyaç duymaz. Oyun açıldığı anda yapay zekâ mantığı devreye girer, yemi toplamak için güvenli yolu hesaplar ve yılan ölürse yeni turu otomatik olarak başlatır.
 
+Demo: https://metinciris.github.io/oto-yilan/
+
 ## Öne Çıkan Özellikler
 
 * Tam otomatik oynanış
