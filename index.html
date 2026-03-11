@@ -256,7 +256,7 @@
       <div>
         <h1>Oto Yılan</h1>
         <div class="sub">
-          Sayfa açılır açılmaz kendi kendine oynayan yılan. Artık üç modu var: dengeli, agresif ve Hamiltonian rota kullanan kusursuz mod.
+          Sayfa açılır açılmaz kendi kendine oynayan yılan. Üç modu var: dengeli, agresif ve saf Hamiltonian rota kullanan kusursuz mod.
         </div>
       </div>
 
@@ -295,7 +295,7 @@
           <button class="mode-btn active" data-mode="perfect">Kusursuz</button>
         </div>
         <div class="mode-desc" id="modeDesc">
-          Hamiltonian rota izler. Güvenli kısayol varsa alır, yoksa tüm tahtayı risksiz dolaşıp sonunda mutlaka yeme ulaşır.
+          Saf Hamiltonian rota izler. Kısayol almaz; bu yüzden daha yavaş olabilir ama kuyruk üstüne basmadan güvenli biçimde oynar.
         </div>
       </div>
 
@@ -313,11 +313,11 @@
       </div>
 
       <div class="cta">
-        İpucu: Kusursuz mod, tahtayı neredeyse hiç yanmadan doldurmak için Hamiltonian cycle kullanır. Daha hızlı yeme gitmesini istersen Agresif mod seç.
+        İpucu: Kusursuz mod artık saf Hamiltonian cycle izler. En güvenli mod budur; daha hızlı yeme gitmesini istersen Agresif mod seç.
       </div>
 
       <div class="footer-note">
-        Dengeli mod güvenli yolu kovalar. Agresif mod fırsat görünce daha sert yaklaşır. Kusursuz mod ise önce hayatta kalmayı garanti altına alır.
+        Dengeli mod güvenli yolu kovalar. Agresif mod fırsat görünce daha sert yaklaşır. Kusursuz mod ise kısayol almadan garanti rota izler.
       </div>
     </aside>
   </div>
@@ -371,7 +371,7 @@
       },
       perfect: {
         label: "Kusursuz",
-        description: "Hamiltonian rota izler. Güvenli kısa yol varsa alır, yoksa tüm tahtayı garantili biçimde dolaşıp sonunda yeme ulaşır."
+        description: "Saf Hamiltonian rota izler. Kısayol almaz; bu yüzden daha yavaş olabilir ama kuyruk üstüne basmadan güvenli biçimde oynar."
       }
     };
 
@@ -488,10 +488,6 @@
 
     function manhattan(a, b) {
       return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-    }
-
-    function cycleDistance(fromIndex, toIndex) {
-      return (toIndex - fromIndex + HAMILTONIAN_CYCLE.length) % HAMILTONIAN_CYCLE.length;
     }
 
     function rememberHead(head) {
@@ -650,14 +646,11 @@
 
     function buildPerfectPreview(startIndex) {
       const preview = [];
-      const foodIndex = HAMILTONIAN_INDEX.get(key(state.food.x, state.food.y));
       const maxPreview = 28;
 
       for (let i = 0; i < maxPreview; i++) {
         const idx = (startIndex + i) % HAMILTONIAN_CYCLE.length;
-        const cell = HAMILTONIAN_CYCLE[idx];
-        preview.push(cell);
-        if (idx === foodIndex) break;
+        preview.push(HAMILTONIAN_CYCLE[idx]);
       }
 
       return preview;
@@ -666,45 +659,21 @@
     function choosePerfectMove() {
       const head = state.snake[0];
       const headIndex = HAMILTONIAN_INDEX.get(key(head.x, head.y));
-      const foodIndex = HAMILTONIAN_INDEX.get(key(state.food.x, state.food.y));
 
-      if (headIndex == null || foodIndex == null) {
+      if (headIndex == null) {
         return null;
       }
 
       const strictNextIndex = (headIndex + 1) % HAMILTONIAN_CYCLE.length;
       const strictNext = HAMILTONIAN_CYCLE[strictNextIndex];
-      const blocked = buildBlockedSet(state.snake, false);
-      blocked.delete(key(head.x, head.y));
-      const foodForwardDistance = cycleDistance(headIndex, foodIndex);
+      const willGrow = equals(strictNext, state.food);
 
-      let bestShortcut = null;
-      let bestShortcutIndex = -1;
-
-      for (const d of dirs) {
-        const next = { x: head.x + d.x, y: head.y + d.y };
-        if (!inBounds(next) || blocked.has(key(next.x, next.y))) continue;
-
-        const nextIndex = HAMILTONIAN_INDEX.get(key(next.x, next.y));
-        if (nextIndex == null) continue;
-
-        const forwardDistance = cycleDistance(headIndex, nextIndex);
-        const willGrow = equals(next, state.food);
-
-        if (forwardDistance === 0) continue;
-        if (forwardDistance > foodForwardDistance) continue;
-        if (!isSafeMove(state.snake, next, willGrow)) continue;
-
-        if (forwardDistance > bestShortcutIndex) {
-          bestShortcutIndex = forwardDistance;
-          bestShortcut = next;
-        }
+      if (!isSafeMove(state.snake, strictNext, willGrow)) {
+        return null;
       }
 
-      const chosen = bestShortcut || strictNext;
-      const chosenIndex = HAMILTONIAN_INDEX.get(key(chosen.x, chosen.y));
-      lastPlannedPath = buildPerfectPreview(chosenIndex);
-      return chosen;
+      lastPlannedPath = buildPerfectPreview(strictNextIndex);
+      return strictNext;
     }
 
     function chooseHeuristicMove(config) {
@@ -799,6 +768,7 @@
 
       const ateFood = equals(next, state.food);
       state.snake.unshift(next);
+
       if (!ateFood) {
         state.snake.pop();
         state.stepsSinceFood += 1;
@@ -815,12 +785,13 @@
 
       const head = state.snake[0];
       const body = state.snake.slice(1);
+
       if (!inBounds(head) || body.some((p) => equals(p, head))) {
         state.alive = false;
         gameOverAt = performance.now();
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
       } else if (currentMode === "perfect") {
-        statusEl.textContent = state.stepsSinceFood > 14 ? "Kusursuz rota izleniyor" : "Güvenli kısayol aranıyor";
+        statusEl.textContent = "Kusursuz rota izleniyor";
       } else if (state.stepsSinceFood > MODES[currentMode].starvationHardLimit) {
         statusEl.textContent = "Döngü kırılıyor";
       } else if (state.stepsSinceFood > MODES[currentMode].starvationSoftLimit) {
@@ -884,8 +855,10 @@
 
       ctx.strokeStyle = "rgba(255,255,255,0.05)";
       ctx.lineWidth = 1;
+
       for (let i = 0; i <= GRID; i++) {
         const p = i * SIZE;
+
         ctx.beginPath();
         ctx.moveTo(p, 0);
         ctx.lineTo(p, canvas.height);
@@ -942,7 +915,13 @@
       ctx.fillStyle = "#052e16";
       ctx.beginPath();
       ctx.arc(px + eyeOffsetX + 6, py + eyeOffsetY, 2.6, 0, Math.PI * 2);
-      ctx.arc(px + (state.dir.x === 0 ? 14 : eyeOffsetX + 6), py + (state.dir.y === 0 ? 14 : eyeOffsetY), 2.6, 0, Math.PI * 2);
+      ctx.arc(
+        px + (state.dir.x === 0 ? 14 : eyeOffsetX + 6),
+        py + (state.dir.y === 0 ? 14 : eyeOffsetY),
+        2.6,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     }
 
@@ -957,6 +936,7 @@
       ctx.textAlign = "center";
       ctx.font = "700 34px Inter, sans-serif";
       ctx.fillText("Yeni tur başlıyor", canvas.width / 2, canvas.height / 2 - 8);
+
       ctx.font = "500 17px Inter, sans-serif";
       ctx.fillStyle = "#cbd5e1";
       ctx.fillText(`Skor: ${state.score}`, canvas.width / 2, canvas.height / 2 + 28);
