@@ -240,7 +240,7 @@
       background: rgba(255,255,255,0.04);
       border: 1px solid rgba(255,255,255,0.08);
       display: grid;
-      gap: 10px;
+      gap: 12px;
     }
 
     .hunger-top {
@@ -257,33 +257,32 @@
       font-weight: 700;
     }
 
-    .hunger-dots {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .hunger-dot {
-      width: 18px;
-      height: 18px;
+    .health-track {
+      height: 8px;
       border-radius: 999px;
-      border: 2px solid rgba(248,113,113,0.65);
       background: rgba(127,29,29,0.18);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+      border: 1px solid rgba(248,113,113,0.18);
+      overflow: hidden;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
     }
 
-    .hunger-dot.filled {
-      background: #ef4444;
+    .health-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #ef4444, #f87171);
       box-shadow: 0 0 18px rgba(239,68,68,0.28);
+      transform-origin: left center;
+      transition: width 220ms ease, opacity 180ms ease, transform 180ms ease;
     }
 
-    .hunger-dot.blink-three {
-      animation: hungerBlink 0.28s ease-in-out 6;
+    .health-fill.blink-three {
+      animation: healthBlink 0.3s ease-in-out 6;
     }
 
-    @keyframes hungerBlink {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.18; transform: scale(0.86); }
+    @keyframes healthBlink {
+      0%, 100% { opacity: 1; transform: scaleY(1); }
+      50% { opacity: 0.2; transform: scaleY(0.72); }
     }
 
     body.fullscreen-mode .wrap {
@@ -377,12 +376,8 @@
           <span>Can</span>
           <strong class="hunger-text" id="hungerText">0 / 5 can</strong>
         </div>
-        <div class="hunger-dots" id="hungerDots">
-          <span class="hunger-dot" data-dot="1"></span>
-          <span class="hunger-dot" data-dot="2"></span>
-          <span class="hunger-dot" data-dot="3"></span>
-          <span class="hunger-dot" data-dot="4"></span>
-          <span class="hunger-dot" data-dot="5"></span>
+        <div class="health-track" aria-hidden="true">
+          <div class="health-fill" id="healthFill"></div>
         </div>
       </div>
 
@@ -400,7 +395,7 @@
       </div>
 
       <div class="cta">
-        İpucu: Can sistemi 0/5 başlar. Yılan yemek yedikçe can kazanır, zamanla can kaybeder. Can 0 olunca kısa bir süre daha dayanır ve bu sırada daha agresif oynar.
+        İpucu: Can sistemi 0/5 başlar ama başlangıçta hemen bitmez; ilk yemek için uzun bir şans süresi vardır. Can artık ince bir çizgi olarak gösterilir ve daha yavaş azalır.
       </div>
 
       <div class="footer-note">
@@ -421,7 +416,7 @@
     const speedEl = document.getElementById("speed");
     const statusEl = document.getElementById("statusText");
     const hungerTextEl = document.getElementById("hungerText");
-    const hungerDots = Array.from(document.querySelectorAll(".hunger-dot"));
+    const healthFillEl = document.getElementById("healthFill");
 
     const GRID = 20;
     const SIZE = canvas.width / GRID;
@@ -429,8 +424,9 @@
     const MAX_SPEED = 18;
     const RESTART_DELAY = 900;
     const MAX_HUNGER = 5;
-    const HUNGER_DECAY_STEPS = 18;
-    const ZERO_HUNGER_GRACE_STEPS = 12;
+    const HUNGER_DECAY_STEPS = 36;
+    const ZERO_HUNGER_GRACE_STEPS = 30;
+    const START_ZERO_HUNGER_GRACE_STEPS = 120;
 
     let bestScore = 0;
     let run = 1;
@@ -487,7 +483,8 @@
         ticks: 0,
         hunger: 0,
         hungerStepCounter: 0,
-        stepsSinceFood: 0
+        stepsSinceFood: 0,
+        hasEaten: false
       };
     }
 
@@ -613,8 +610,9 @@
       let bestScoreForMove = -Infinity;
       const currentFoodDistance = Math.abs(head.x - state.food.x) + Math.abs(head.y - state.food.y);
       const hungerMissing = MAX_HUNGER - state.hunger;
+      const zeroGraceLimit = state.hasEaten ? ZERO_HUNGER_GRACE_STEPS : START_ZERO_HUNGER_GRACE_STEPS;
       const hungerPhase = state.hunger <= 0
-        ? 1 + (state.hungerStepCounter / ZERO_HUNGER_GRACE_STEPS)
+        ? 1 + (state.hungerStepCounter / zeroGraceLimit)
         : (state.hungerStepCounter / HUNGER_DECAY_STEPS);
       const isHungry = state.hunger <= 2;
       const isVeryHungry = state.hunger <= 0;
@@ -678,7 +676,7 @@
           const previousHunger = state.hunger;
           state.hunger = Math.max(0, state.hunger - 1);
           updateHungerUI(previousHunger !== state.hunger && state.hunger === 1);
-        } else if (state.hunger <= 0 && state.hungerStepCounter >= ZERO_HUNGER_GRACE_STEPS) {
+        } else if (state.hunger <= 0 && state.hungerStepCounter >= (state.hasEaten ? ZERO_HUNGER_GRACE_STEPS : START_ZERO_HUNGER_GRACE_STEPS)) {
           state.alive = false;
           gameOverAt = performance.now();
           deathReason = "Açlıktan öldü";
@@ -689,6 +687,7 @@
       } else {
         state.score += 1;
         state.stepsSinceFood = 0;
+        state.hasEaten = true;
         state.hunger = Math.min(MAX_HUNGER, state.hunger + 1);
         state.hungerStepCounter = 0;
         bestScore = Math.max(bestScore, state.score);
@@ -707,7 +706,7 @@
         deathReason = "Çarpıştı";
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
       } else if (state.hunger <= 0) {
-        statusEl.textContent = "Can bitti, son şans";
+        statusEl.textContent = state.hasEaten ? "Can bitti, son şans" : "İlk yemek aranıyor";
       } else if (state.hunger === 1) {
         statusEl.textContent = "1 can kaldı, saldırıyor";
       } else if (state.hunger <= 2) {
@@ -746,22 +745,19 @@
       return `${state.hunger} / 5 can`;
     }
 
-    function blinkLowHungerDot() {
-      const dot = hungerDots[state.hunger - 1];
-      if (!dot) return;
-      dot.classList.remove("blink-three");
-      void dot.offsetWidth;
-      dot.classList.add("blink-three");
-      setTimeout(() => dot.classList.remove("blink-three"), 1800);
+    function blinkLowHealthBar() {
+      healthFillEl.classList.remove("blink-three");
+      void healthFillEl.offsetWidth;
+      healthFillEl.classList.add("blink-three");
+      setTimeout(() => healthFillEl.classList.remove("blink-three"), 1800);
     }
 
     function updateHungerUI(triggerBlink = false) {
       hungerTextEl.textContent = getHungerLabel();
-      hungerDots.forEach((dot, index) => {
-        dot.classList.toggle("filled", index < state.hunger);
-      });
-      if (triggerBlink && state.hunger === 1) {
-        blinkLowHungerDot();
+      const ratio = Math.max(0, Math.min(1, state.hunger / MAX_HUNGER));
+      healthFillEl.style.width = `${ratio * 100}%`;
+      if (triggerBlink && state.hunger <= 1) {
+        blinkLowHealthBar();
       }
     }
 
