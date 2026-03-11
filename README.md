@@ -40,18 +40,6 @@ Oyundaki otomatik sistem şu yaklaşımla çalışır:
 * Eğer doğrudan güvenli bir yol yoksa, yılanın sıkışmaması için daha geniş hareket alanı bırakan hamleyi seçer.
 * Oyun bittiğinde kısa bir bekleme sonrası kendini yeniden başlatır.
 
-## GitHub Pages ile Yayınlama
-
-Bu proje statik olduğu için GitHub Pages ile kolayca yayınlanabilir.
-
-### Adımlar
-
-1. GitHub’da yeni bir repo oluştur.
-2. `index.html` ve `README.md` dosyalarını yükle.
-3. Repo ayarlarından **Pages** bölümünü aç.
-4. Branch olarak `main` ve klasör olarak `/root` seç.
-5. Kaydet ve birkaç saniye sonra oluşan linkten projeyi aç.
-
 ## Geliştirme Fikirleri
 
 * Farklı oyun modları eklemek
@@ -63,7 +51,7 @@ Bu proje statik olduğu için GitHub Pages ile kolayca yayınlanabilir.
 
 Yılan belirgin şekilde  akıllı çünkü artık sadece “yeme git” demiyor, “gidince çıkabilecek miyim?” diye de bakıyor.
 
-Akıllanmasını sağlayan ana şeyler bunlar:
+## Akıllanmasını sağlayan ana şeyler bunlar:
 
 **1. En kısa yolu arıyor (`bfsPath`)**
 Artık rastgele ya da sadece hedefe yaklaşan hamle yapmıyor. Tahtada yeme giden gerçek bir yol arıyor. Bu yüzden koridorları ve engelleri daha iyi okuyor.
@@ -130,7 +118,7 @@ Akıllı görünmesine en çok katkı veren 3 parça bence şunlar:
 
 Özellikle `isSafeMove` en kritik yükseltme. Çünkü oyunu “hedefe koşan bot”tan çıkarıp “önce hayatta kalmayı bilen bot” yapıyor.
 
-İlerde daha da akıllandıracak 5 yükseltme de çıkabilir:
+## İlerde daha da akıllandıracak 5 yükseltme de çıkabilir:
 Hamiltonian cycle, daha derin simülasyon, trap detection ve lookahead sistemi
 
 ## Ekran Görünümü
