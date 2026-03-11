@@ -330,11 +330,11 @@
         <div class="legend-item"><span class="dot" style="background:#10b981"></span> Yılan başı</div>
         <div class="legend-item"><span class="dot" style="background:#34d399"></span> Yılan gövdesi</div>
         <div class="legend-item"><span class="dot" style="background:#fb7185"></span> Yem</div>
-        <div class="legend-item"><span class="dot" style="background:#fbbf24"></span> Son planlanan yol</div>
+        <div class="legend-item"><span class="dot" style="background:#c7d2fe"></span> Açlıkta agresif mod</div>
       </div>
 
       <div class="cta">
-        İpucu: Bu sürüm, önce iyi çalışan ilk zekâya geri döndü. Sadece oyun alanı büyütüldü ve tam ekran düğmesi eklendi.
+        İpucu: Planlanan yol artık gösterilmez. Yılan uzun süre yemek bulamazsa açlık moduna girer ve daha agresif şekilde yeme yaklaşır.
       </div>
 
       <div class="footer-note">
@@ -360,6 +360,8 @@
     const START_SPEED = 9;
     const MAX_SPEED = 18;
     const RESTART_DELAY = 900;
+    const HUNGER_SOFT_LIMIT = 18;
+    const HUNGER_HARD_LIMIT = 40;
 
     let bestScore = 0;
     let run = 1;
@@ -411,7 +413,8 @@
         food: { x: 3, y: 3 },
         score: 0,
         alive: true,
-        ticks: 0
+        ticks: 0,
+        stepsSinceFood: 0
       };
     }
 
@@ -535,13 +538,15 @@
       const head = state.snake[0];
       let bestMove = null;
       let bestScoreForMove = -Infinity;
-      lastPlannedPath = [];
+      const currentFoodDistance = Math.abs(head.x - state.food.x) + Math.abs(head.y - state.food.y);
+      const hunger = state.stepsSinceFood;
+      const isHungry = hunger > HUNGER_SOFT_LIMIT;
+      const isVeryHungry = hunger > HUNGER_HARD_LIMIT;
 
       const pathToFood = bfsPath(state.snake, state.food);
       if (pathToFood && pathToFood.length) {
         const first = pathToFood[0];
         if (isSafeMove(state.snake, first, equals(first, state.food))) {
-          lastPlannedPath = pathToFood;
           return first;
         }
       }
@@ -554,8 +559,16 @@
         const newSnake = simulateMove(state.snake, next, willGrow);
         const area = reachableArea(newSnake[0], newSnake);
         const foodDistance = Math.abs(next.x - state.food.x) + Math.abs(next.y - state.food.y);
+        const progress = currentFoodDistance - foodDistance;
         const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.4 : 0;
-        const score = area - foodDistance * 0.45 - wallPenalty;
+
+        const foodWeight = isVeryHungry ? 1.45 : isHungry ? 1.05 : 0.45;
+        const progressBonus = isVeryHungry ? progress * 8 : isHungry ? progress * 5 : progress * 2.2;
+        const safetyWeight = isVeryHungry ? 0.72 : isHungry ? 0.86 : 1;
+        const wallWeight = isVeryHungry ? 0.3 : isHungry ? 0.6 : 1;
+        const eatBonus = willGrow ? (isVeryHungry ? 22 : isHungry ? 16 : 10) : 0;
+
+        const score = area * safetyWeight - foodDistance * foodWeight + progressBonus + eatBonus - wallPenalty * wallWeight;
 
         if (score > bestScoreForMove) {
           bestScoreForMove = score;
@@ -581,8 +594,10 @@
       state.snake.unshift(next);
       if (!ateFood) {
         state.snake.pop();
+        state.stepsSinceFood += 1;
       } else {
         state.score += 1;
+        state.stepsSinceFood = 0;
         bestScore = Math.max(bestScore, state.score);
         placeFood();
       }
@@ -596,6 +611,10 @@
         state.alive = false;
         gameOverAt = performance.now();
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
+      } else if (state.stepsSinceFood > HUNGER_HARD_LIMIT) {
+        statusEl.textContent = "Açlık modunda saldırıyor";
+      } else if (state.stepsSinceFood > HUNGER_SOFT_LIMIT) {
+        statusEl.textContent = "Açlık arttı, agresif oynuyor";
       } else if (state.alive) {
         statusEl.textContent = "Otomatik oynuyor";
       }
@@ -668,10 +687,6 @@
     }
 
     function drawPath() {
-      if (!lastPlannedPath.length) return;
-      for (const node of lastPlannedPath.slice(0, 12)) {
-        drawRoundedCell(node.x, node.y, "rgba(251,191,36,0.18)", 7, false);
-      }
     }
 
     function drawFood() {
@@ -734,7 +749,6 @@
 
     function render() {
       drawGrid();
-      drawPath();
       drawFood();
       drawSnake();
       drawOverlay();
@@ -759,4 +773,5 @@
       requestAnimationFrame(loop);
     }
   </script>
-</bo
+</body>
+</html>
