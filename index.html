@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oto Yılan</title>
+  <style>
+    :root {
+      --bg1: #0b1020;
+      --bg2: #121a31;
+      --panel: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.12);
+      --text: #eef2ff;
+      --muted: #a5b4fc;
+      --food: #fb7185;
+      --snake: #34d399;
+      --snake-head: #10b981;
+      --grid: rgba(255,255,255,0.05);
+      --glow: rgba(52, 211, 153, 0.35);
+      --warn: #fbbf24;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at top, #1f2a5c 0%, transparent 35%),
+        radial-gradient(circle at bottom right, #0f766e 0%, transparent 28%),
+        linear-gradient(135deg, var(--bg1), var(--bg2));
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .wrap {
+      width: min(92vw, 900px);
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 1.15fr 0.85fr;
+      align-items: start;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.28);
+    }
+
+    .game-panel {
+      padding: 18px;
+    }
+
+    canvas {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: block;
+      border-radius: 20px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)),
+        #0b1220;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .side {
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.6rem, 2vw, 2.1rem);
+      line-height: 1.1;
+    }
+
+    .sub {
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.98rem;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #c7d2fe;
+      opacity: 0.78;
+      margin-bottom: 6px;
+    }
+
+    .value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill {
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: #e2e8f0;
+      font-size: 0.9rem;
+    }
+
+    .cta {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(16,185,129,0.25), rgba(99,102,241,0.18));
+      border: 1px solid rgba(255,255,255,0.08);
+      line-height: 1.5;
+      color: #ecfeff;
+    }
+
+    .status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: #dbeafe;
+      font-size: 0.95rem;
+    }
+
+    .status strong {
+      color: white;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      font-size: 0.95rem;
+      color: #dbeafe;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+
+    .footer-note {
+      color: #cbd5e1;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      opacity: 0.9;
+    }
+
+    @media (max-width: 860px) {
+      .wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card game-panel">
+      <canvas id="game" width="600" height="600" aria-label="Oto yılan oyunu"></canvas>
+    </section>
+
+    <aside class="card side">
+      <div>
+        <h1>Oto Yılan</h1>
+        <div class="sub">
+          Sayfa açılır açılmaz yapay zekâ yılanı kendi kendine oynar. En kısa güvenli yolu bulmaya çalışır; yol kapanırsa hayatta kalacak hamleyi seçer.
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Skor</div>
+          <div class="value" id="score">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">En İyi</div>
+          <div class="value" id="best">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Tur</div>
+          <div class="value" id="run">1</div>
+        </div>
+        <div class="stat">
+          <div class="label">Hız</div>
+          <div class="value" id="speed">9</div>
+        </div>
+      </div>
+
+      <div class="status">
+        <span>Durum</span>
+        <strong id="statusText">Otomatik oynuyor</strong>
+      </div>
+
+      <div class="pill-row">
+        <div class="pill">Tam otomatik</div>
+        <div class="pill">Sayfa açılınca başlar</div>
+        <div class="pill">Ölünce otomatik yeniden başlar</div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><span class="dot" style="background:#10b981"></span> Yılan başı</div>
+        <div class="legend-item"><span class="dot" style="background:#34d399"></span> Yılan gövdesi</div>
+        <div class="legend-item"><span class="dot" style="background:#fb7185"></span> Yem</div>
+        <div class="legend-item"><span class="dot" style="background:#fbbf24"></span> Son planlanan yol</div>
+      </div>
+
+      <div class="cta">
+        İpucu: Bu dosyayı <strong>.html</strong> olarak kaydedip tarayıcıda açman yeterli. Kod, klavye girişi beklemeden otomatik çalışır.
+      </div>
+
+      <div class="footer-note">
+        Algoritma önce yeme giden bir yol bulur. Uygun yol yoksa, yılanın sıkışmaması için daha geniş alan bırakan güvenli hamleyi seçer.
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const runEl = document.getElementById("run");
+    const speedEl = document.getElementById("speed");
+    const statusEl = document.getElementById("statusText");
+
+    const GRID = 20;
+    const SIZE = canvas.width / GRID;
+    const START_SPEED = 9;
+    const MAX_SPEED = 18;
+    const RESTART_DELAY = 900;
+
+    let bestScore = 0;
+    let run = 1;
+    let lastFrame = 0;
+    let accumulator = 0;
+    let stepMs = 1000 / START_SPEED;
+    let gameOverAt = null;
+    let lastPlannedPath = [];
+
+    const dirs = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 }
+    ];
+
+    let state = createInitialState();
+    placeFood();
+    updateHud();
+    requestAnimationFrame(loop);
+
+    function createInitialState() {
+      const mid = Math.floor(GRID / 2);
+      return {
+        snake: [
+          { x: mid, y: mid },
+          { x: mid - 1, y: mid },
+          { x: mid - 2, y: mid }
+        ],
+        dir: { x: 1, y: 0 },
+        food: { x: 3, y: 3 },
+        score: 0,
+        alive: true,
+        ticks: 0
+      };
+    }
+
+    function key(x, y) {
+      return `${x},${y}`;
+    }
+
+    function cloneSnake(snake) {
+      return snake.map((p) => ({ x: p.x, y: p.y }));
+    }
+
+    function inBounds(p) {
+      return p.x >= 0 && p.x < GRID && p.y >= 0 && p.y < GRID;
+    }
+
+    function equals(a, b) {
+      return a.x === b.x && a.y === b.y;
+    }
+
+    function placeFood() {
+      const occupied = new Set(state.snake.map((p) => key(p.x, p.y)));
+      const free = [];
+      for (let y = 0; y < GRID; y++) {
+        for (let x = 0; x < GRID; x++) {
+          if (!occupied.has(key(x, y))) free.push({ x, y });
+        }
+      }
+      if (!free.length) {
+        state.alive = false;
+        gameOverAt = performance.now();
+        statusEl.textContent = "Tahta doldu, yeniden başlıyor";
+        return;
+      }
+      state.food = free[Math.floor(Math.random() * free.length)];
+    }
+
+    function buildBlockedSet(snake, grow = false) {
+      const blocked = new Set();
+      const cutoff = grow ? snake.length : snake.length - 1;
+      for (let i = 0; i < cutoff; i++) {
+        blocked.add(key(snake[i].x, snake[i].y));
+      }
+      return blocked;
+    }
+
+    function bfsPath(snake, target) {
+      const head = snake[0];
+      const blocked = buildBlockedSet(snake, false);
+      blocked.delete(key(head.x, head.y));
+
+      const queue = [head];
+      const cameFrom = new Map();
+      const visited = new Set([key(head.x, head.y)]);
+
+      while (queue.length) {
+        const current = queue.shift();
+        if (equals(current, target)) break;
+
+        for (const d of dirs) {
+          const next = { x: current.x + d.x, y: current.y + d.y };
+          const k = key(next.x, next.y);
+          if (!inBounds(next) || blocked.has(k) || visited.has(k)) continue;
+          visited.add(k);
+          cameFrom.set(k, current);
+          queue.push(next);
+        }
+      }
+
+      if (!visited.has(key(target.x, target.y))) return null;
+
+      const path = [];
+      let cur = target;
+      while (!equals(cur, head)) {
+        path.push(cur);
+        cur = cameFrom.get(key(cur.x, cur.y));
+      }
+      path.reverse();
+      return path;
+    }
+
+    function simulateMove(snake, next, willGrow) {
+      const newSnake = [{ x: next.x, y: next.y }, ...cloneSnake(snake)];
+      if (!willGrow) newSnake.pop();
+      return newSnake;
+    }
+
+    function reachableArea(start, snake) {
+      const blocked = buildBlockedSet(snake, true);
+      blocked.delete(key(start.x, start.y));
+      const queue = [start];
+      const visited = new Set([key(start.x, start.y)]);
+
+      while (queue.length) {
+        const current = queue.shift();
+        for (const d of dirs) {
+          const next = { x: current.x + d.x, y: current.y + d.y };
+          const k = key(next.x, next.y);
+          if (!inBounds(next) || blocked.has(k) || visited.has(k)) continue;
+          visited.add(k);
+          queue.push(next);
+        }
+      }
+      return visited.size;
+    }
+
+    function isSafeMove(snake, next, willGrow) {
+      if (!inBounds(next)) return false;
+
+      const blocked = buildBlockedSet(snake, willGrow);
+      if (blocked.has(key(next.x, next.y))) return false;
+
+      const newSnake = simulateMove(snake, next, willGrow);
+      const head = newSnake[0];
+      const tail = newSnake[newSnake.length - 1];
+      const pathToTail = bfsPath(newSnake, tail);
+
+      return Boolean(pathToTail) || newSnake.length < 5;
+    }
+
+    function chooseNextMove() {
+      const head = state.snake[0];
+      let bestMove = null;
+      let bestScoreForMove = -Infinity;
+      lastPlannedPath = [];
+
+      const pathToFood = bfsPath(state.snake, state.food);
+      if (pathToFood && pathToFood.length) {
+        const first = pathToFood[0];
+        if (isSafeMove(state.snake, first, equals(first, state.food))) {
+          lastPlannedPath = pathToFood;
+          return first;
+        }
+      }
+
+      for (const d of dirs) {
+        const next = { x: head.x + d.x, y: head.y + d.y };
+        const willGrow = equals(next, state.food);
+        if (!isSafeMove(state.snake, next, willGrow)) continue;
+
+        const newSnake = simulateMove(state.snake, next, willGrow);
+        const area = reachableArea(newSnake[0], newSnake);
+        const foodDistance = Math.abs(next.x - state.food.x) + Math.abs(next.y - state.food.y);
+        const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.4 : 0;
+        const score = area - foodDistance * 0.45 - wallPenalty;
+
+        if (score > bestScoreForMove) {
+          bestScoreForMove = score;
+          bestMove = next;
+        }
+      }
+
+      return bestMove;
+    }
+
+    function step() {
+      if (!state.alive) return;
+
+      const next = chooseNextMove();
+      if (!next) {
+        state.alive = false;
+        gameOverAt = performance.now();
+        statusEl.textContent = "Sıkıştı, yeniden başlıyor";
+        return;
+      }
+
+      const ateFood = equals(next, state.food);
+      state.snake.unshift(next);
+      if (!ateFood) {
+        state.snake.pop();
+      } else {
+        state.score += 1;
+        bestScore = Math.max(bestScore, state.score);
+        placeFood();
+      }
+
+      state.dir = { x: next.x - state.snake[1].x, y: next.y - state.snake[1].y };
+      state.ticks += 1;
+
+      const head = state.snake[0];
+      const body = state.snake.slice(1);
+      if (!inBounds(head) || body.some((p) => equals(p, head))) {
+        state.alive = false;
+        gameOverAt = performance.now();
+        statusEl.textContent = "Çarpıştı, yeniden başlıyor";
+      } else if (state.alive) {
+        statusEl.textContent = "Otomatik oynuyor";
+      }
+
+      const currentSpeed = Math.min(MAX_SPEED, START_SPEED + Math.floor(state.score / 3));
+      stepMs = 1000 / currentSpeed;
+      updateHud(currentSpeed);
+    }
+
+    function restartGame() {
+      run += 1;
+      state = createInitialState();
+      placeFood();
+      stepMs = 1000 / START_SPEED;
+      gameOverAt = null;
+      lastPlannedPath = [];
+      statusEl.textContent = "Otomatik oynuyor";
+      updateHud(START_SPEED);
+    }
+
+    function updateHud(currentSpeed = Math.round(1000 / stepMs)) {
+      scoreEl.textContent = state.score;
+      bestEl.textContent = bestScore;
+      runEl.textContent = run;
+      speedEl.textContent = currentSpeed;
+    }
+
+    function drawRoundedCell(x, y, color, radius = 9, glow = false) {
+      const px = x * SIZE + 3;
+      const py = y * SIZE + 3;
+      const s = SIZE - 6;
+
+      ctx.save();
+      if (glow) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 16;
+      }
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(px + radius, py);
+      ctx.arcTo(px + s, py, px + s, py + s, radius);
+      ctx.arcTo(px + s, py + s, px, py + s, radius);
+      ctx.arcTo(px, py + s, px, py, radius);
+      ctx.arcTo(px, py, px + s, py, radius);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "#0a1220";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = "rgba(255,255,255,0.05)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= GRID; i++) {
+        const p = i * SIZE;
+        ctx.beginPath();
+        ctx.moveTo(p, 0);
+        ctx.lineTo(p, canvas.height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, p);
+        ctx.lineTo(canvas.width, p);
+        ctx.stroke();
+      }
+    }
+
+    function drawPath() {
+      if (!lastPlannedPath.length) return;
+      for (const node of lastPlannedPath.slice(0, 12)) {
+        drawRoundedCell(node.x, node.y, "rgba(251,191,36,0.18)", 7, false);
+      }
+    }
+
+    function drawFood() {
+      const { x, y } = state.food;
+      const cx = x * SIZE + SIZE / 2;
+      const cy = y * SIZE + SIZE / 2;
+      const r = SIZE * 0.24;
+
+      ctx.save();
+      ctx.shadowColor = "rgba(251,113,133,0.55)";
+      ctx.shadowBlur = 22;
+      ctx.fillStyle = "#fb7185";
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.beginPath();
+      ctx.arc(cx - 4, cy - 4, r * 0.34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawSnake() {
+      state.snake.slice().reverse().forEach((part, indexFromTail) => {
+        const isHead = indexFromTail === state.snake.length - 1;
+        const color = isHead ? "#10b981" : "#34d399";
+        drawRoundedCell(part.x, part.y, color, isHead ? 10 : 8, isHead);
+      });
+
+      const head = state.snake[0];
+      const px = head.x * SIZE;
+      const py = head.y * SIZE;
+      const eyeOffsetX = state.dir.x === 0 ? 6 : state.dir.x > 0 ? 9 : 4;
+      const eyeOffsetY = state.dir.y === 0 ? 6 : state.dir.y > 0 ? 9 : 4;
+
+      ctx.fillStyle = "#052e16";
+      ctx.beginPath();
+      ctx.arc(px + eyeOffsetX + 6, py + eyeOffsetY, 2.6, 0, Math.PI * 2);
+      ctx.arc(px + (state.dir.x === 0 ? 14 : eyeOffsetX + 6), py + (state.dir.y === 0 ? 14 : eyeOffsetY), 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawOverlay() {
+      if (state.alive) return;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(2, 6, 23, 0.42)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = "white";
+      ctx.textAlign = "center";
+      ctx.font = "700 34px Inter, sans-serif";
+      ctx.fillText("Yeni tur başlıyor", canvas.width / 2, canvas.height / 2 - 8);
+      ctx.font = "500 17px Inter, sans-serif";
+      ctx.fillStyle = "#cbd5e1";
+      ctx.fillText(`Skor: ${state.score}`, canvas.width / 2, canvas.height / 2 + 28);
+      ctx.restore();
+    }
+
+    function render() {
+      drawGrid();
+      drawPath();
+      drawFood();
+      drawSnake();
+      drawOverlay();
+    }
+
+    function loop(ts) {
+      if (!lastFrame) lastFrame = ts;
+      const delta = ts - lastFrame;
+      lastFrame = ts;
+      accumulator += delta;
+
+      if (state.alive) {
+        while (accumulator >= stepMs) {
+          step();
+          accumulator -= stepMs;
+        }
+      } else if (gameOverAt && ts - gameOverAt > RESTART_DELAY) {
+        restartGame();
+      }
+
+      render();
+      requestAnimationFrame(loop);
+    }
+  </script>
+</body>
+</html>
