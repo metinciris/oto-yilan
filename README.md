@@ -71,7 +71,7 @@ Bu proje statik olduğu için GitHub Pages ile kolayca yayınlanabilir.
 * Manuel mod ile otomatik modu birlikte sunmak
 * Skor geçmişini localStorage ile saklamak
 
-* Evet, bu sürüm belirgin şekilde daha akıllı çünkü artık sadece “yeme git” demiyor, “gidince çıkabilecek miyim?” diye de bakıyor.
+Yılan belirgin şekilde  akıllı çünkü artık sadece “yeme git” demiyor, “gidince çıkabilecek miyim?” diye de bakıyor.
 
 Akıllanmasını sağlayan ana şeyler bunlar:
 
@@ -140,6 +140,8 @@ Akıllı görünmesine en çok katkı veren 3 parça bence şunlar:
 
 Özellikle `isSafeMove` en kritik yükseltme. Çünkü oyunu “hedefe koşan bot”tan çıkarıp “önce hayatta kalmayı bilen bot” yapıyor.
 
+İlerde daha da akıllandıracak 5 yükseltme de çıkabilir:
+Hamiltonian cycle, daha derin simülasyon, trap detection ve lookahead sistemi
 
 ## Ekran Görünümü
 
