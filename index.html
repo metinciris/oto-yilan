@@ -234,6 +234,58 @@
       opacity: 0.9;
     }
 
+    .hunger-card {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: grid;
+      gap: 10px;
+    }
+
+    .hunger-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: #dbeafe;
+      font-size: 0.95rem;
+    }
+
+    .hunger-text {
+      color: #fecaca;
+      font-weight: 700;
+    }
+
+    .hunger-dots {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .hunger-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 2px solid rgba(248,113,113,0.65);
+      background: rgba(127,29,29,0.18);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+
+    .hunger-dot.filled {
+      background: #ef4444;
+      box-shadow: 0 0 18px rgba(239,68,68,0.28);
+    }
+
+    .hunger-dot.blink-three {
+      animation: hungerBlink 0.28s ease-in-out 6;
+    }
+
+    @keyframes hungerBlink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.18; transform: scale(0.86); }
+    }
+
     body.fullscreen-mode .wrap {
       width: 100vw;
       height: 100vh;
@@ -320,6 +372,20 @@
         <strong id="statusText">Otomatik oynuyor</strong>
       </div>
 
+      <div class="hunger-card">
+        <div class="hunger-top">
+          <span>Can</span>
+          <strong class="hunger-text" id="hungerText">0 / 5 can</strong>
+        </div>
+        <div class="hunger-dots" id="hungerDots">
+          <span class="hunger-dot" data-dot="1"></span>
+          <span class="hunger-dot" data-dot="2"></span>
+          <span class="hunger-dot" data-dot="3"></span>
+          <span class="hunger-dot" data-dot="4"></span>
+          <span class="hunger-dot" data-dot="5"></span>
+        </div>
+      </div>
+
       <div class="pill-row">
         <div class="pill">Tam otomatik</div>
         <div class="pill">Büyük oyun ekranı</div>
@@ -330,11 +396,11 @@
         <div class="legend-item"><span class="dot" style="background:#10b981"></span> Yılan başı</div>
         <div class="legend-item"><span class="dot" style="background:#34d399"></span> Yılan gövdesi</div>
         <div class="legend-item"><span class="dot" style="background:#fb7185"></span> Yem</div>
-        <div class="legend-item"><span class="dot" style="background:#c7d2fe"></span> Açlıkta agresif mod</div>
+        <div class="legend-item"><span class="dot" style="background:#c7d2fe"></span> Can azalınca agresif mod</div>
       </div>
 
       <div class="cta">
-        İpucu: Planlanan yol artık gösterilmez. Yılan uzun süre yemek bulamazsa açlık moduna girer ve daha agresif şekilde yeme yaklaşır.
+        İpucu: Can sistemi 0/5 başlar. Yılan yemek yedikçe can kazanır, zamanla can kaybeder. Can 0 olunca kısa bir süre daha dayanır ve bu sırada daha agresif oynar.
       </div>
 
       <div class="footer-note">
@@ -354,14 +420,17 @@
     const runEl = document.getElementById("run");
     const speedEl = document.getElementById("speed");
     const statusEl = document.getElementById("statusText");
+    const hungerTextEl = document.getElementById("hungerText");
+    const hungerDots = Array.from(document.querySelectorAll(".hunger-dot"));
 
     const GRID = 20;
     const SIZE = canvas.width / GRID;
     const START_SPEED = 9;
     const MAX_SPEED = 18;
     const RESTART_DELAY = 900;
-    const HUNGER_SOFT_LIMIT = 18;
-    const HUNGER_HARD_LIMIT = 40;
+    const MAX_HUNGER = 5;
+    const HUNGER_DECAY_STEPS = 18;
+    const ZERO_HUNGER_GRACE_STEPS = 12;
 
     let bestScore = 0;
     let run = 1;
@@ -370,6 +439,7 @@
     let stepMs = 1000 / START_SPEED;
     let gameOverAt = null;
     let lastPlannedPath = [];
+    let deathReason = "";
 
     const dirs = [
       { x: 1, y: 0 },
@@ -381,6 +451,7 @@
     let state = createInitialState();
     placeFood();
     updateHud();
+    updateHungerUI();
     requestAnimationFrame(loop);
 
     fullscreenBtn.addEventListener("click", async () => {
@@ -414,6 +485,8 @@
         score: 0,
         alive: true,
         ticks: 0,
+        hunger: 0,
+        hungerStepCounter: 0,
         stepsSinceFood: 0
       };
     }
@@ -539,9 +612,12 @@
       let bestMove = null;
       let bestScoreForMove = -Infinity;
       const currentFoodDistance = Math.abs(head.x - state.food.x) + Math.abs(head.y - state.food.y);
-      const hunger = state.stepsSinceFood;
-      const isHungry = hunger > HUNGER_SOFT_LIMIT;
-      const isVeryHungry = hunger > HUNGER_HARD_LIMIT;
+      const hungerMissing = MAX_HUNGER - state.hunger;
+      const hungerPhase = state.hunger <= 0
+        ? 1 + (state.hungerStepCounter / ZERO_HUNGER_GRACE_STEPS)
+        : (state.hungerStepCounter / HUNGER_DECAY_STEPS);
+      const isHungry = state.hunger <= 2;
+      const isVeryHungry = state.hunger <= 0;
 
       const pathToFood = bfsPath(state.snake, state.food);
       if (pathToFood && pathToFood.length) {
@@ -562,11 +638,11 @@
         const progress = currentFoodDistance - foodDistance;
         const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.4 : 0;
 
-        const foodWeight = isVeryHungry ? 1.45 : isHungry ? 1.05 : 0.45;
-        const progressBonus = isVeryHungry ? progress * 8 : isHungry ? progress * 5 : progress * 2.2;
-        const safetyWeight = isVeryHungry ? 0.72 : isHungry ? 0.86 : 1;
-        const wallWeight = isVeryHungry ? 0.3 : isHungry ? 0.6 : 1;
-        const eatBonus = willGrow ? (isVeryHungry ? 22 : isHungry ? 16 : 10) : 0;
+        const foodWeight = isVeryHungry ? 1.7 : isHungry ? 1.1 : 0.45;
+        const progressBonus = progress * (2.2 + hungerMissing * 0.9 + hungerPhase * 2.2) * (isVeryHungry ? 1.55 : isHungry ? 1.18 : 1);
+        const safetyWeight = isVeryHungry ? 0.68 : isHungry ? 0.86 : 1;
+        const wallWeight = isVeryHungry ? 0.4 : isHungry ? 0.7 : 1;
+        const eatBonus = willGrow ? (10 + hungerMissing * 3.5 + (state.hunger <= 0 ? 8 : 0)) : 0;
 
         const score = area * safetyWeight - foodDistance * foodWeight + progressBonus + eatBonus - wallPenalty * wallWeight;
 
@@ -595,11 +671,29 @@
       if (!ateFood) {
         state.snake.pop();
         state.stepsSinceFood += 1;
+        state.hungerStepCounter += 1;
+
+        if (state.hunger > 0 && state.hungerStepCounter >= HUNGER_DECAY_STEPS) {
+          state.hungerStepCounter = 0;
+          const previousHunger = state.hunger;
+          state.hunger = Math.max(0, state.hunger - 1);
+          updateHungerUI(previousHunger !== state.hunger && state.hunger === 1);
+        } else if (state.hunger <= 0 && state.hungerStepCounter >= ZERO_HUNGER_GRACE_STEPS) {
+          state.alive = false;
+          gameOverAt = performance.now();
+          deathReason = "Açlıktan öldü";
+          statusEl.textContent = "Açlıktan öldü, yeniden başlıyor";
+          updateHud();
+          return;
+        }
       } else {
         state.score += 1;
         state.stepsSinceFood = 0;
+        state.hunger = Math.min(MAX_HUNGER, state.hunger + 1);
+        state.hungerStepCounter = 0;
         bestScore = Math.max(bestScore, state.score);
         placeFood();
+        updateHungerUI(state.hunger === 1);
       }
 
       state.dir = { x: next.x - state.snake[1].x, y: next.y - state.snake[1].y };
@@ -610,11 +704,14 @@
       if (!inBounds(head) || body.some((p) => equals(p, head))) {
         state.alive = false;
         gameOverAt = performance.now();
+        deathReason = "Çarpıştı";
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
-      } else if (state.stepsSinceFood > HUNGER_HARD_LIMIT) {
-        statusEl.textContent = "Açlık modunda saldırıyor";
-      } else if (state.stepsSinceFood > HUNGER_SOFT_LIMIT) {
-        statusEl.textContent = "Açlık arttı, agresif oynuyor";
+      } else if (state.hunger <= 0) {
+        statusEl.textContent = "Can bitti, son şans";
+      } else if (state.hunger === 1) {
+        statusEl.textContent = "1 can kaldı, saldırıyor";
+      } else if (state.hunger <= 2) {
+        statusEl.textContent = "Can azalıyor, agresif oynuyor";
       } else if (state.alive) {
         statusEl.textContent = "Otomatik oynuyor";
       }
@@ -631,8 +728,10 @@
       stepMs = 1000 / START_SPEED;
       gameOverAt = null;
       lastPlannedPath = [];
+      deathReason = "";
       statusEl.textContent = "Otomatik oynuyor";
       updateHud(START_SPEED);
+      updateHungerUI();
     }
 
     function updateHud(currentSpeed = Math.round(1000 / stepMs)) {
@@ -640,6 +739,30 @@
       bestEl.textContent = bestScore;
       runEl.textContent = run;
       speedEl.textContent = currentSpeed;
+    }
+
+    function getHungerLabel() {
+      if (state.hunger <= 0) return "0 / 5 can";
+      return `${state.hunger} / 5 can`;
+    }
+
+    function blinkLowHungerDot() {
+      const dot = hungerDots[state.hunger - 1];
+      if (!dot) return;
+      dot.classList.remove("blink-three");
+      void dot.offsetWidth;
+      dot.classList.add("blink-three");
+      setTimeout(() => dot.classList.remove("blink-three"), 1800);
+    }
+
+    function updateHungerUI(triggerBlink = false) {
+      hungerTextEl.textContent = getHungerLabel();
+      hungerDots.forEach((dot, index) => {
+        dot.classList.toggle("filled", index < state.hunger);
+      });
+      if (triggerBlink && state.hunger === 1) {
+        blinkLowHungerDot();
+      }
     }
 
     function drawRoundedCell(x, y, color, radius = 9, glow = false) {
@@ -740,7 +863,7 @@
       ctx.fillStyle = "white";
       ctx.textAlign = "center";
       ctx.font = "700 48px Inter, sans-serif";
-      ctx.fillText("Yeni tur başlıyor", canvas.width / 2, canvas.height / 2 - 12);
+      ctx.fillText(deathReason || "Yeni tur başlıyor", canvas.width / 2, canvas.height / 2 - 12);
       ctx.font = "500 24px Inter, sans-serif";
       ctx.fillStyle = "#cbd5e1";
       ctx.fillText(`Skor: ${state.score}`, canvas.width / 2, canvas.height / 2 + 34);
