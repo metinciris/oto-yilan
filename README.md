@@ -71,6 +71,76 @@ Bu proje statik olduğu için GitHub Pages ile kolayca yayınlanabilir.
 * Manuel mod ile otomatik modu birlikte sunmak
 * Skor geçmişini localStorage ile saklamak
 
+* Evet, bu sürüm belirgin şekilde daha akıllı çünkü artık sadece “yeme git” demiyor, “gidince çıkabilecek miyim?” diye de bakıyor.
+
+Akıllanmasını sağlayan ana şeyler bunlar:
+
+**1. En kısa yolu arıyor (`bfsPath`)**
+Artık rastgele ya da sadece hedefe yaklaşan hamle yapmıyor. Tahtada yeme giden gerçek bir yol arıyor. Bu yüzden koridorları ve engelleri daha iyi okuyor.
+
+**2. Kuyruğu özel ele alıyor (`buildBlockedSet`)**
+Çok önemli nokta bu. Yılanın kuyruğu hareket edeceği için bazı durumlarda kuyruk karesi geçici olarak kullanılabilir kabul ediliyor.
+Bu sayede “gereksiz yere kapalı sanılan” yolları da kullanabiliyor.
+
+**3. Hamleyi simüle edip sonra karar veriyor (`simulateMove`)**
+Önce hamleyi kafasında oynuyor:
+
+* buraya gidersem gövde nasıl olacak?
+* büyüyecek miyim?
+* çıkış kalacak mı?
+
+Bu, tek adımlık bakıştan daha güçlü.
+
+**4. Güvenlik kontrolü var (`isSafeMove`)**
+Asıl fark burada. Yeme giden yol bulsa bile hemen gitmiyor. Önce şunu kontrol ediyor:
+
+* O hamleden sonra yeni kafadan kuyruğa hâlâ bir yol var mı?
+
+Yani sistem şunu düşünüyor:
+“Bu hamle kısa vadede güzel ama beni kapana sıkıştırır mı?”
+
+Bu özellik eski sürümlerde yoksa yılan sık sık:
+
+* yemi alıp köşeye kapanır,
+* kendi etrafını sarar,
+* dar alanda çıkışsız kalırdı.
+
+**5. Yol güvenli değilse alternatif stratejiye geçiyor (`chooseNextMove`)**
+Eğer yeme güvenli yol yoksa boş boş intihar etmiyor. Bunun yerine hayatta kalma modu açılıyor.
+
+Bu modda her aday hamle için şunlara bakıyor:
+
+* ne kadar geniş alan bırakıyor (`reachableArea`)
+* yeme uzaklık
+* duvara fazla yapışıyor mu (`wallPenalty`)
+
+Yani artık sadece “hedef” değil, “manevra alanı” da önemli.
+
+**6. Erişilebilir alan hesabı var (`reachableArea`)**
+Bu da çok etkili. Hamleden sonra yılanın başı ne kadar büyük bir açık bölgede kalıyor, onu ölçüyor.
+Böylece dar koridordan ziyade geniş ve güvenli bölgelere yöneliyor.
+
+**7. Büyüme durumu hesaba katılıyor (`willGrow`)**
+Yemi yiyecekse kuyruk o tur hareket etmeyecek. Kod bunu biliyor.
+Bu çok kritik, çünkü büyüme anında güvenli sandığın bir hamle aslında tehlikeli olabilir.
+
+**8. “Yol yoksa en az kötü hamle” mantığı var**
+Eskiden sistemler genelde:
+
+* ya direkt yeme gider,
+* ya da yol yoksa saçmalar.
+
+Bu sürüm ise yol yoksa bile puanlama yapıp en mantıklı güvenli hamleyi seçiyor. Bu yüzden daha “insansı” görünüyor.
+
+Akıllı görünmesine en çok katkı veren 3 parça bence şunlar:
+
+* `bfsPath`
+* `isSafeMove`
+* `reachableArea`
+
+Özellikle `isSafeMove` en kritik yükseltme. Çünkü oyunu “hedefe koşan bot”tan çıkarıp “önce hayatta kalmayı bilen bot” yapıyor.
+
+
 ## Ekran Görünümü
 
 Bu proje modern kart yapısına sahip bir arayüz içerir:
