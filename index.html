@@ -16,8 +16,8 @@
       --snake: #34d399;
       --snake-head: #10b981;
       --grid: rgba(255,255,255,0.05);
-      --glow: rgba(52, 211, 153, 0.35);
       --warn: #fbbf24;
+      --accent: #8b5cf6;
     }
 
     * { box-sizing: border-box; }
@@ -37,7 +37,7 @@
     }
 
     .wrap {
-      width: min(92vw, 900px);
+      width: min(92vw, 940px);
       display: grid;
       gap: 18px;
       grid-template-columns: 1.15fr 0.85fr;
@@ -113,7 +113,8 @@
       line-height: 1;
     }
 
-    .pill-row {
+    .pill-row,
+    .mode-row {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
@@ -126,6 +127,29 @@
       background: rgba(255,255,255,0.04);
       color: #e2e8f0;
       font-size: 0.9rem;
+    }
+
+    .mode-btn {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.05);
+      color: #e2e8f0;
+      border-radius: 14px;
+      padding: 11px 14px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+    }
+
+    .mode-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    .mode-btn.active {
+      background: linear-gradient(135deg, rgba(16,185,129,0.24), rgba(139,92,246,0.24));
+      border-color: rgba(255,255,255,0.22);
+      color: white;
     }
 
     .cta {
@@ -174,6 +198,40 @@
       flex: 0 0 auto;
     }
 
+    .mode-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: grid;
+      gap: 10px;
+    }
+
+    .mode-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.95rem;
+      color: #dbeafe;
+    }
+
+    .mode-badge {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(139,92,246,0.18);
+      border: 1px solid rgba(139,92,246,0.28);
+      color: #ede9fe;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+
+    .mode-desc {
+      color: #cbd5e1;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
     .footer-note {
       color: #cbd5e1;
       font-size: 0.9rem;
@@ -198,7 +256,7 @@
       <div>
         <h1>Oto Yılan</h1>
         <div class="sub">
-          Sayfa açılır açılmaz yapay zekâ yılanı kendi kendine oynar. En kısa güvenli yolu bulmaya çalışır; yol kapanırsa hayatta kalacak hamleyi seçer.
+          Sayfa açılır açılmaz kendi kendine oynayan yılan. Artık üç modu var: dengeli, agresif ve Hamiltonian rota kullanan kusursuz mod.
         </div>
       </div>
 
@@ -223,13 +281,28 @@
 
       <div class="status">
         <span>Durum</span>
-        <strong id="statusText">Otomatik oynuyor</strong>
+        <strong id="statusText">Kusursuz rota izleniyor</strong>
+      </div>
+
+      <div class="mode-card">
+        <div class="mode-title">
+          <span>Oyun modu</span>
+          <span class="mode-badge" id="modeBadge">Kusursuz</span>
+        </div>
+        <div class="mode-row">
+          <button class="mode-btn" data-mode="balanced">Dengeli</button>
+          <button class="mode-btn" data-mode="aggressive">Agresif</button>
+          <button class="mode-btn active" data-mode="perfect">Kusursuz</button>
+        </div>
+        <div class="mode-desc" id="modeDesc">
+          Hamiltonian rota izler. Güvenli kısayol varsa alır, yoksa tüm tahtayı risksiz dolaşıp sonunda mutlaka yeme ulaşır.
+        </div>
       </div>
 
       <div class="pill-row">
         <div class="pill">Tam otomatik</div>
         <div class="pill">Sayfa açılınca başlar</div>
-        <div class="pill">Ölünce otomatik yeniden başlar</div>
+        <div class="pill">Mod değişince yeni tur başlar</div>
       </div>
 
       <div class="legend">
@@ -240,11 +313,11 @@
       </div>
 
       <div class="cta">
-        İpucu: Bu dosyayı <strong>.html</strong> olarak kaydedip tarayıcıda açman yeterli. Kod, klavye girişi beklemeden otomatik çalışır.
+        İpucu: Kusursuz mod, tahtayı neredeyse hiç yanmadan doldurmak için Hamiltonian cycle kullanır. Daha hızlı yeme gitmesini istersen Agresif mod seç.
       </div>
 
       <div class="footer-note">
-        Algoritma önce yeme giden bir yol bulur. Uygun yol yoksa, yılanın sıkışmaması için daha geniş alan bırakan güvenli hamleyi seçer.
+        Dengeli mod güvenli yolu kovalar. Agresif mod fırsat görünce daha sert yaklaşır. Kusursuz mod ise önce hayatta kalmayı garanti altına alır.
       </div>
     </aside>
   </div>
@@ -258,6 +331,9 @@
     const runEl = document.getElementById("run");
     const speedEl = document.getElementById("speed");
     const statusEl = document.getElementById("statusText");
+    const modeBadgeEl = document.getElementById("modeBadge");
+    const modeDescEl = document.getElementById("modeDesc");
+    const modeButtons = Array.from(document.querySelectorAll(".mode-btn"));
 
     const GRID = 20;
     const SIZE = canvas.width / GRID;
@@ -265,9 +341,46 @@
     const MAX_SPEED = 18;
     const RESTART_DELAY = 900;
     const LOOP_MEMORY = 40;
-    const STARVATION_SOFT_LIMIT = 24;
-    const STARVATION_HARD_LIMIT = 60;
 
+    const MODES = {
+      balanced: {
+        label: "Dengeli",
+        description: "Yeme güvenli şekilde yaklaşır. Döngüye sıkışmamak için yakın geçmişte dolaştığı kareleri cezalandırır.",
+        starvationSoftLimit: 24,
+        starvationHardLimit: 60,
+        progressWeight: 2.4,
+        futureFoodBase: 11,
+        visitPenaltyBase: 2,
+        wallPenalty: 0.5,
+        safetyLateWeight: 0.78,
+        corridorDead: 4.5,
+        corridorTight: 1.2
+      },
+      aggressive: {
+        label: "Agresif",
+        description: "Güvenliği tamamen bırakmadan fırsat görünce yeme daha kararlı saldırır. Daha hızlı, biraz daha riskli davranır.",
+        starvationSoftLimit: 12,
+        starvationHardLimit: 34,
+        progressWeight: 3.4,
+        futureFoodBase: 14,
+        visitPenaltyBase: 1.15,
+        wallPenalty: 0.3,
+        safetyLateWeight: 0.68,
+        corridorDead: 3.1,
+        corridorTight: 0.7
+      },
+      perfect: {
+        label: "Kusursuz",
+        description: "Hamiltonian rota izler. Güvenli kısa yol varsa alır, yoksa tüm tahtayı garantili biçimde dolaşıp sonunda yeme ulaşır."
+      }
+    };
+
+    const HAMILTONIAN_CYCLE = createHamiltonianCycle(GRID);
+    const HAMILTONIAN_INDEX = new Map(
+      HAMILTONIAN_CYCLE.map((cell, index) => [key(cell.x, cell.y), index])
+    );
+
+    let currentMode = "perfect";
     let bestScore = 0;
     let run = 1;
     let lastFrame = 0;
@@ -285,16 +398,52 @@
 
     let state = createInitialState();
     placeFood();
+    setMode(currentMode, false);
     updateHud();
     requestAnimationFrame(loop);
 
+    modeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextMode = button.dataset.mode;
+        if (nextMode !== currentMode) {
+          setMode(nextMode, true);
+        }
+      });
+    });
+
+    function createHamiltonianCycle(size) {
+      const cycle = [];
+
+      for (let x = 0; x < size; x++) {
+        cycle.push({ x, y: 0 });
+      }
+
+      for (let y = 1; y < size; y++) {
+        if (y % 2 === 1) {
+          for (let x = size - 1; x >= 1; x--) {
+            cycle.push({ x, y });
+          }
+        } else {
+          for (let x = 1; x < size; x++) {
+            cycle.push({ x, y });
+          }
+        }
+      }
+
+      for (let y = size - 1; y >= 1; y--) {
+        cycle.push({ x: 0, y });
+      }
+
+      return cycle;
+    }
+
     function createInitialState() {
-      const mid = Math.floor(GRID / 2);
+      const len = HAMILTONIAN_CYCLE.length;
       return {
         snake: [
-          { x: mid, y: mid },
-          { x: mid - 1, y: mid },
-          { x: mid - 2, y: mid }
+          { ...HAMILTONIAN_CYCLE[0] },
+          { ...HAMILTONIAN_CYCLE[len - 1] },
+          { ...HAMILTONIAN_CYCLE[len - 2] }
         ],
         dir: { x: 1, y: 0 },
         food: { x: 3, y: 3 },
@@ -302,8 +451,23 @@
         alive: true,
         ticks: 0,
         stepsSinceFood: 0,
-        recentHeads: [key(mid, mid)]
+        recentHeads: [key(HAMILTONIAN_CYCLE[0].x, HAMILTONIAN_CYCLE[0].y)]
       };
+    }
+
+    function setMode(mode, restart = true) {
+      currentMode = mode;
+      modeBadgeEl.textContent = MODES[mode].label;
+      modeDescEl.textContent = MODES[mode].description;
+      modeButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.mode === mode);
+      });
+
+      if (restart) {
+        restartGame();
+      } else if (mode === "perfect") {
+        statusEl.textContent = "Kusursuz rota izleniyor";
+      }
     }
 
     function key(x, y) {
@@ -324,6 +488,10 @@
 
     function manhattan(a, b) {
       return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    function cycleDistance(fromIndex, toIndex) {
+      return (toIndex - fromIndex + HAMILTONIAN_CYCLE.length) % HAMILTONIAN_CYCLE.length;
     }
 
     function rememberHead(head) {
@@ -480,7 +648,66 @@
       return null;
     }
 
-    function chooseNextMove() {
+    function buildPerfectPreview(startIndex) {
+      const preview = [];
+      const foodIndex = HAMILTONIAN_INDEX.get(key(state.food.x, state.food.y));
+      const maxPreview = 28;
+
+      for (let i = 0; i < maxPreview; i++) {
+        const idx = (startIndex + i) % HAMILTONIAN_CYCLE.length;
+        const cell = HAMILTONIAN_CYCLE[idx];
+        preview.push(cell);
+        if (idx === foodIndex) break;
+      }
+
+      return preview;
+    }
+
+    function choosePerfectMove() {
+      const head = state.snake[0];
+      const headIndex = HAMILTONIAN_INDEX.get(key(head.x, head.y));
+      const foodIndex = HAMILTONIAN_INDEX.get(key(state.food.x, state.food.y));
+
+      if (headIndex == null || foodIndex == null) {
+        return null;
+      }
+
+      const strictNextIndex = (headIndex + 1) % HAMILTONIAN_CYCLE.length;
+      const strictNext = HAMILTONIAN_CYCLE[strictNextIndex];
+      const blocked = buildBlockedSet(state.snake, false);
+      blocked.delete(key(head.x, head.y));
+      const foodForwardDistance = cycleDistance(headIndex, foodIndex);
+
+      let bestShortcut = null;
+      let bestShortcutIndex = -1;
+
+      for (const d of dirs) {
+        const next = { x: head.x + d.x, y: head.y + d.y };
+        if (!inBounds(next) || blocked.has(key(next.x, next.y))) continue;
+
+        const nextIndex = HAMILTONIAN_INDEX.get(key(next.x, next.y));
+        if (nextIndex == null) continue;
+
+        const forwardDistance = cycleDistance(headIndex, nextIndex);
+        const willGrow = equals(next, state.food);
+
+        if (forwardDistance === 0) continue;
+        if (forwardDistance > foodForwardDistance) continue;
+        if (!isSafeMove(state.snake, next, willGrow)) continue;
+
+        if (forwardDistance > bestShortcutIndex) {
+          bestShortcutIndex = forwardDistance;
+          bestShortcut = next;
+        }
+      }
+
+      const chosen = bestShortcut || strictNext;
+      const chosenIndex = HAMILTONIAN_INDEX.get(key(chosen.x, chosen.y));
+      lastPlannedPath = buildPerfectPreview(chosenIndex);
+      return chosen;
+    }
+
+    function chooseHeuristicMove(config) {
       const head = state.snake[0];
       const currentFoodDistance = manhattan(head, state.food);
       const hunger = state.stepsSinceFood;
@@ -504,14 +731,14 @@
         const area = reachableArea(newSnake[0], newSnake);
         const nextFoodDistance = manhattan(next, state.food);
         const progress = currentFoodDistance - nextFoodDistance;
-        const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.5 : 0;
-        const visitPenalty = recentVisitCount(next) * (2 + hunger / 18);
+        const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? config.wallPenalty : 0;
+        const visitPenalty = recentVisitCount(next) * (config.visitPenaltyBase + hunger / 18);
         const openNeighbors = countOpenNeighbors(newSnake[0], newSnake);
-        const corridorPenalty = openNeighbors <= 1 ? 4.5 : openNeighbors === 2 ? 1.2 : 0;
+        const corridorPenalty = openNeighbors <= 1 ? config.corridorDead : openNeighbors === 2 ? config.corridorTight : 0;
         const pathToTail = bfsPath(newSnake, newSnake[newSnake.length - 1]);
         const tailBonus = pathToTail ? Math.min(5, pathToTail.length * 0.08) : 0;
-        const hungerWeight = hunger < STARVATION_SOFT_LIMIT ? 1 : 1.6 + Math.min(2.4, hunger / 18);
-        const safetyWeight = hunger > STARVATION_HARD_LIMIT ? 0.78 : 1;
+        const hungerWeight = hunger < config.starvationSoftLimit ? 1 : 1.6 + Math.min(2.6, hunger / 16);
+        const safetyWeight = hunger > config.starvationHardLimit ? config.safetyLateWeight : 1;
 
         let futureFoodBonus = 0;
         let pathPreview = [];
@@ -519,21 +746,21 @@
         if (!willGrow) {
           const futureFoodPath = findSafeFoodPath(newSnake, state.food);
           if (futureFoodPath) {
-            futureFoodBonus = 11 + Math.max(0, 8 - futureFoodPath.length) * 0.5;
+            futureFoodBonus = config.futureFoodBase + Math.max(0, 8 - futureFoodPath.length) * 0.5;
             pathPreview = [next, ...futureFoodPath];
           }
         } else {
-          futureFoodBonus = 18;
+          futureFoodBonus = config.futureFoodBase + 7;
           pathPreview = [next];
         }
 
-        if (hunger > STARVATION_SOFT_LIMIT && progress <= 0) {
+        if (hunger > config.starvationSoftLimit && progress <= 0) {
           futureFoodBonus -= 2.5;
         }
 
         const score =
           area * safetyWeight +
-          progress * hungerWeight * 2.4 +
+          progress * hungerWeight * config.progressWeight +
           futureFoodBonus +
           tailBonus -
           nextFoodDistance * 0.4 -
@@ -550,6 +777,13 @@
 
       lastPlannedPath = bestPathPreview;
       return bestMove;
+    }
+
+    function chooseNextMove() {
+      if (currentMode === "perfect") {
+        return choosePerfectMove();
+      }
+      return chooseHeuristicMove(MODES[currentMode]);
     }
 
     function step() {
@@ -585,12 +819,16 @@
         state.alive = false;
         gameOverAt = performance.now();
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
-      } else if (state.stepsSinceFood > STARVATION_HARD_LIMIT) {
+      } else if (currentMode === "perfect") {
+        statusEl.textContent = state.stepsSinceFood > 14 ? "Kusursuz rota izleniyor" : "Güvenli kısayol aranıyor";
+      } else if (state.stepsSinceFood > MODES[currentMode].starvationHardLimit) {
         statusEl.textContent = "Döngü kırılıyor";
-      } else if (state.stepsSinceFood > STARVATION_SOFT_LIMIT) {
+      } else if (state.stepsSinceFood > MODES[currentMode].starvationSoftLimit) {
         statusEl.textContent = "Yeme güvenli yaklaşım aranıyor";
+      } else if (currentMode === "aggressive") {
+        statusEl.textContent = "Agresif mod oynuyor";
       } else {
-        statusEl.textContent = "Otomatik oynuyor";
+        statusEl.textContent = "Dengeli mod oynuyor";
       }
 
       const currentSpeed = Math.min(MAX_SPEED, START_SPEED + Math.floor(state.score / 3));
@@ -605,7 +843,7 @@
       stepMs = 1000 / START_SPEED;
       gameOverAt = null;
       lastPlannedPath = [];
-      statusEl.textContent = "Otomatik oynuyor";
+      statusEl.textContent = currentMode === "perfect" ? "Kusursuz rota izleniyor" : "Otomatik oynuyor";
       updateHud(START_SPEED);
     }
 
@@ -662,7 +900,7 @@
 
     function drawPath() {
       if (!lastPlannedPath.length) return;
-      for (const node of lastPlannedPath.slice(0, 12)) {
+      for (const node of lastPlannedPath.slice(0, 16)) {
         drawRoundedCell(node.x, node.y, "rgba(251,191,36,0.18)", 7, false);
       }
     }
