@@ -395,7 +395,7 @@
       </div>
 
       <div class="cta">
-        İpucu: Can sistemi 0/5 başlar ama başlangıçta hemen bitmez; ilk yemek için uzun bir şans süresi vardır. Can artık ince bir çizgi olarak gösterilir ve daha yavaş azalır.
+        İpucu: Can artık kesikli değil, sürekli akan ince bir çizgi olarak azalır. Son can diğerlerine göre daha yavaş tükenir; bu yüzden kritik anda biraz daha fazla toparlama şansı verir.
       </div>
 
       <div class="footer-note">
@@ -424,9 +424,10 @@
     const MAX_SPEED = 18;
     const RESTART_DELAY = 900;
     const MAX_HUNGER = 5;
-    const HUNGER_DECAY_STEPS = 36;
-    const ZERO_HUNGER_GRACE_STEPS = 30;
-    const START_ZERO_HUNGER_GRACE_STEPS = 120;
+    const HEALTH_DECAY_PER_STEP = 1 / 70;
+    const LAST_HEALTH_DECAY_PER_STEP = 1 / 115;
+    const ZERO_HUNGER_GRACE_STEPS = 42;
+    const START_ZERO_HUNGER_GRACE_STEPS = 150;
 
     let bestScore = 0;
     let run = 1;
@@ -481,8 +482,8 @@
         score: 0,
         alive: true,
         ticks: 0,
-        hunger: 0,
-        hungerStepCounter: 0,
+        health: 0,
+        zeroHealthCounter: 0,
         stepsSinceFood: 0,
         hasEaten: false
       };
@@ -609,13 +610,13 @@
       let bestMove = null;
       let bestScoreForMove = -Infinity;
       const currentFoodDistance = Math.abs(head.x - state.food.x) + Math.abs(head.y - state.food.y);
-      const hungerMissing = MAX_HUNGER - state.hunger;
+      const healthMissing = MAX_HUNGER - state.health;
       const zeroGraceLimit = state.hasEaten ? ZERO_HUNGER_GRACE_STEPS : START_ZERO_HUNGER_GRACE_STEPS;
-      const hungerPhase = state.hunger <= 0
-        ? 1 + (state.hungerStepCounter / zeroGraceLimit)
-        : (state.hungerStepCounter / HUNGER_DECAY_STEPS);
-      const isHungry = state.hunger <= 2;
-      const isVeryHungry = state.hunger <= 0;
+      const zeroHealthPressure = state.health <= 0
+        ? 1 + (state.zeroHealthCounter / zeroGraceLimit)
+        : 0;
+      const isHungry = state.health <= 2;
+      const isVeryHungry = state.health <= 1;
 
       const pathToFood = bfsPath(state.snake, state.food);
       if (pathToFood && pathToFood.length) {
@@ -636,11 +637,11 @@
         const progress = currentFoodDistance - foodDistance;
         const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.4 : 0;
 
-        const foodWeight = isVeryHungry ? 1.7 : isHungry ? 1.1 : 0.45;
-        const progressBonus = progress * (2.2 + hungerMissing * 0.9 + hungerPhase * 2.2) * (isVeryHungry ? 1.55 : isHungry ? 1.18 : 1);
-        const safetyWeight = isVeryHungry ? 0.68 : isHungry ? 0.86 : 1;
-        const wallWeight = isVeryHungry ? 0.4 : isHungry ? 0.7 : 1;
-        const eatBonus = willGrow ? (10 + hungerMissing * 3.5 + (state.hunger <= 0 ? 8 : 0)) : 0;
+        const foodWeight = state.health <= 0 ? 1.85 : isVeryHungry ? 1.45 : isHungry ? 1.02 : 0.45;
+        const progressBonus = progress * (2.1 + healthMissing * 0.85 + zeroHealthPressure * 2.4) * (state.health <= 0 ? 1.65 : isVeryHungry ? 1.28 : isHungry ? 1.12 : 1);
+        const safetyWeight = state.health <= 0 ? 0.62 : isVeryHungry ? 0.76 : isHungry ? 0.88 : 1;
+        const wallWeight = state.health <= 0 ? 0.36 : isVeryHungry ? 0.5 : isHungry ? 0.72 : 1;
+        const eatBonus = willGrow ? (10 + healthMissing * 3.2 + (state.health <= 0 ? 10 : 0)) : 0;
 
         const score = area * safetyWeight - foodDistance * foodWeight + progressBonus + eatBonus - wallPenalty * wallWeight;
 
@@ -669,30 +670,39 @@
       if (!ateFood) {
         state.snake.pop();
         state.stepsSinceFood += 1;
-        state.hungerStepCounter += 1;
 
-        if (state.hunger > 0 && state.hungerStepCounter >= HUNGER_DECAY_STEPS) {
-          state.hungerStepCounter = 0;
-          const previousHunger = state.hunger;
-          state.hunger = Math.max(0, state.hunger - 1);
-          updateHungerUI(previousHunger !== state.hunger && state.hunger === 1);
-        } else if (state.hunger <= 0 && state.hungerStepCounter >= (state.hasEaten ? ZERO_HUNGER_GRACE_STEPS : START_ZERO_HUNGER_GRACE_STEPS)) {
-          state.alive = false;
-          gameOverAt = performance.now();
-          deathReason = "Açlıktan öldü";
-          statusEl.textContent = "Açlıktan öldü, yeniden başlıyor";
-          updateHud();
-          return;
+        if (state.health > 0) {
+          const decay = state.health <= 1 ? LAST_HEALTH_DECAY_PER_STEP : HEALTH_DECAY_PER_STEP;
+          const previousHealth = state.health;
+          state.health = Math.max(0, state.health - decay);
+
+          if (state.health <= 0) {
+            state.zeroHealthCounter = 0;
+          }
+
+          const crossedIntoLastHealth = previousHealth > 1 && state.health <= 1;
+          updateHungerUI(crossedIntoLastHealth);
+        } else {
+          state.zeroHealthCounter += 1;
+          if (state.zeroHealthCounter >= (state.hasEaten ? ZERO_HUNGER_GRACE_STEPS : START_ZERO_HUNGER_GRACE_STEPS)) {
+            state.alive = false;
+            gameOverAt = performance.now();
+            deathReason = "Açlıktan öldü";
+            statusEl.textContent = "Açlıktan öldü, yeniden başlıyor";
+            updateHud();
+            return;
+          }
         }
       } else {
         state.score += 1;
         state.stepsSinceFood = 0;
         state.hasEaten = true;
-        state.hunger = Math.min(MAX_HUNGER, state.hunger + 1);
-        state.hungerStepCounter = 0;
+        const previousHealth = state.health;
+        state.health = Math.min(MAX_HUNGER, state.health + 1);
+        state.zeroHealthCounter = 0;
         bestScore = Math.max(bestScore, state.score);
         placeFood();
-        updateHungerUI(state.hunger === 1);
+        updateHungerUI(previousHealth < 1 && state.health >= 1);
       }
 
       state.dir = { x: next.x - state.snake[1].x, y: next.y - state.snake[1].y };
@@ -705,11 +715,11 @@
         gameOverAt = performance.now();
         deathReason = "Çarpıştı";
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
-      } else if (state.hunger <= 0) {
+      } else if (state.health <= 0) {
         statusEl.textContent = state.hasEaten ? "Can bitti, son şans" : "İlk yemek aranıyor";
-      } else if (state.hunger === 1) {
-        statusEl.textContent = "1 can kaldı, saldırıyor";
-      } else if (state.hunger <= 2) {
+      } else if (state.health <= 1) {
+        statusEl.textContent = "Son can, saldırıyor";
+      } else if (state.health <= 2) {
         statusEl.textContent = "Can azalıyor, agresif oynuyor";
       } else if (state.alive) {
         statusEl.textContent = "Otomatik oynuyor";
@@ -741,8 +751,7 @@
     }
 
     function getHungerLabel() {
-      if (state.hunger <= 0) return "0 / 5 can";
-      return `${state.hunger} / 5 can`;
+      return `${state.health.toFixed(1)} / 5 can`;
     }
 
     function blinkLowHealthBar() {
@@ -754,9 +763,9 @@
 
     function updateHungerUI(triggerBlink = false) {
       hungerTextEl.textContent = getHungerLabel();
-      const ratio = Math.max(0, Math.min(1, state.hunger / MAX_HUNGER));
+      const ratio = Math.max(0, Math.min(1, state.health / MAX_HUNGER));
       healthFillEl.style.width = `${ratio * 100}%`;
-      if (triggerBlink && state.hunger <= 1) {
+      if (triggerBlink && state.health <= 1.05) {
         blinkLowHealthBar();
       }
     }
