@@ -31,16 +31,6 @@ Demo: https://metinciris.github.io/oto-yilan/
 2. HTML dosyasını tarayıcıda aç.
 3. Oyun otomatik olarak çalışmaya başlar.
 
-## Önerilen Proje Yapısı
-
-```text
-oto-yilan-oyunu/
-├── index.html
-└── README.md
-```
-
-> Mevcut oyun dosyanı `index.html` olarak adlandırırsan GitHub Pages üzerinde yayınlamak daha kolay olur.
-
 ## Oyun Mantığı
 
 Oyundaki otomatik sistem şu yaklaşımla çalışır:
