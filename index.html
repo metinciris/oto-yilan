@@ -264,6 +264,9 @@
     const START_SPEED = 9;
     const MAX_SPEED = 18;
     const RESTART_DELAY = 900;
+    const LOOP_MEMORY = 40;
+    const STARVATION_SOFT_LIMIT = 24;
+    const STARVATION_HARD_LIMIT = 60;
 
     let bestScore = 0;
     let run = 1;
@@ -297,7 +300,9 @@
         food: { x: 3, y: 3 },
         score: 0,
         alive: true,
-        ticks: 0
+        ticks: 0,
+        stepsSinceFood: 0,
+        recentHeads: [key(mid, mid)]
       };
     }
 
@@ -315,6 +320,26 @@
 
     function equals(a, b) {
       return a.x === b.x && a.y === b.y;
+    }
+
+    function manhattan(a, b) {
+      return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    function rememberHead(head) {
+      state.recentHeads.push(key(head.x, head.y));
+      if (state.recentHeads.length > LOOP_MEMORY) {
+        state.recentHeads.shift();
+      }
+    }
+
+    function recentVisitCount(point) {
+      const cell = key(point.x, point.y);
+      let count = 0;
+      for (const item of state.recentHeads) {
+        if (item === cell) count += 1;
+      }
+      return count;
     }
 
     function placeFood() {
@@ -384,6 +409,14 @@
       return newSnake;
     }
 
+    function simulatePath(snake, path, food) {
+      let simulated = cloneSnake(snake);
+      for (const step of path) {
+        simulated = simulateMove(simulated, step, equals(step, food));
+      }
+      return simulated;
+    }
+
     function reachableArea(start, snake) {
       const blocked = buildBlockedSet(snake, true);
       blocked.delete(key(start.x, start.y));
@@ -403,6 +436,19 @@
       return visited.size;
     }
 
+    function countOpenNeighbors(point, snake) {
+      const blocked = buildBlockedSet(snake, true);
+      blocked.delete(key(point.x, point.y));
+      let count = 0;
+      for (const d of dirs) {
+        const next = { x: point.x + d.x, y: point.y + d.y };
+        if (inBounds(next) && !blocked.has(key(next.x, next.y))) {
+          count += 1;
+        }
+      }
+      return count;
+    }
+
     function isSafeMove(snake, next, willGrow) {
       if (!inBounds(next)) return false;
 
@@ -410,26 +456,43 @@
       if (blocked.has(key(next.x, next.y))) return false;
 
       const newSnake = simulateMove(snake, next, willGrow);
-      const head = newSnake[0];
       const tail = newSnake[newSnake.length - 1];
       const pathToTail = bfsPath(newSnake, tail);
 
       return Boolean(pathToTail) || newSnake.length < 5;
     }
 
+    function findSafeFoodPath(snake, food) {
+      const path = bfsPath(snake, food);
+      if (!path || !path.length) return null;
+
+      const simulatedSnake = simulatePath(snake, path, food);
+      const simulatedHead = simulatedSnake[0];
+      const simulatedTail = simulatedSnake[simulatedSnake.length - 1];
+      const pathToTail = bfsPath(simulatedSnake, simulatedTail);
+      const areaAfterEating = reachableArea(simulatedHead, simulatedSnake);
+      const minimumArea = Math.max(8, Math.floor(simulatedSnake.length * 0.85));
+
+      if (pathToTail || areaAfterEating >= minimumArea) {
+        return path;
+      }
+
+      return null;
+    }
+
     function chooseNextMove() {
       const head = state.snake[0];
+      const currentFoodDistance = manhattan(head, state.food);
+      const hunger = state.stepsSinceFood;
       let bestMove = null;
+      let bestPathPreview = [];
       let bestScoreForMove = -Infinity;
       lastPlannedPath = [];
 
-      const pathToFood = bfsPath(state.snake, state.food);
-      if (pathToFood && pathToFood.length) {
-        const first = pathToFood[0];
-        if (isSafeMove(state.snake, first, equals(first, state.food))) {
-          lastPlannedPath = pathToFood;
-          return first;
-        }
+      const directSafeFoodPath = findSafeFoodPath(state.snake, state.food);
+      if (directSafeFoodPath) {
+        lastPlannedPath = directSafeFoodPath;
+        return directSafeFoodPath[0];
       }
 
       for (const d of dirs) {
@@ -439,16 +502,53 @@
 
         const newSnake = simulateMove(state.snake, next, willGrow);
         const area = reachableArea(newSnake[0], newSnake);
-        const foodDistance = Math.abs(next.x - state.food.x) + Math.abs(next.y - state.food.y);
-        const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.4 : 0;
-        const score = area - foodDistance * 0.45 - wallPenalty;
+        const nextFoodDistance = manhattan(next, state.food);
+        const progress = currentFoodDistance - nextFoodDistance;
+        const wallPenalty = (next.x === 0 || next.y === 0 || next.x === GRID - 1 || next.y === GRID - 1) ? 0.5 : 0;
+        const visitPenalty = recentVisitCount(next) * (2 + hunger / 18);
+        const openNeighbors = countOpenNeighbors(newSnake[0], newSnake);
+        const corridorPenalty = openNeighbors <= 1 ? 4.5 : openNeighbors === 2 ? 1.2 : 0;
+        const pathToTail = bfsPath(newSnake, newSnake[newSnake.length - 1]);
+        const tailBonus = pathToTail ? Math.min(5, pathToTail.length * 0.08) : 0;
+        const hungerWeight = hunger < STARVATION_SOFT_LIMIT ? 1 : 1.6 + Math.min(2.4, hunger / 18);
+        const safetyWeight = hunger > STARVATION_HARD_LIMIT ? 0.78 : 1;
+
+        let futureFoodBonus = 0;
+        let pathPreview = [];
+
+        if (!willGrow) {
+          const futureFoodPath = findSafeFoodPath(newSnake, state.food);
+          if (futureFoodPath) {
+            futureFoodBonus = 11 + Math.max(0, 8 - futureFoodPath.length) * 0.5;
+            pathPreview = [next, ...futureFoodPath];
+          }
+        } else {
+          futureFoodBonus = 18;
+          pathPreview = [next];
+        }
+
+        if (hunger > STARVATION_SOFT_LIMIT && progress <= 0) {
+          futureFoodBonus -= 2.5;
+        }
+
+        const score =
+          area * safetyWeight +
+          progress * hungerWeight * 2.4 +
+          futureFoodBonus +
+          tailBonus -
+          nextFoodDistance * 0.4 -
+          wallPenalty -
+          visitPenalty -
+          corridorPenalty;
 
         if (score > bestScoreForMove) {
           bestScoreForMove = score;
           bestMove = next;
+          bestPathPreview = pathPreview;
         }
       }
 
+      lastPlannedPath = bestPathPreview;
       return bestMove;
     }
 
@@ -467,14 +567,17 @@
       state.snake.unshift(next);
       if (!ateFood) {
         state.snake.pop();
+        state.stepsSinceFood += 1;
       } else {
         state.score += 1;
+        state.stepsSinceFood = 0;
         bestScore = Math.max(bestScore, state.score);
         placeFood();
       }
 
       state.dir = { x: next.x - state.snake[1].x, y: next.y - state.snake[1].y };
       state.ticks += 1;
+      rememberHead(state.snake[0]);
 
       const head = state.snake[0];
       const body = state.snake.slice(1);
@@ -482,7 +585,11 @@
         state.alive = false;
         gameOverAt = performance.now();
         statusEl.textContent = "Çarpıştı, yeniden başlıyor";
-      } else if (state.alive) {
+      } else if (state.stepsSinceFood > STARVATION_HARD_LIMIT) {
+        statusEl.textContent = "Döngü kırılıyor";
+      } else if (state.stepsSinceFood > STARVATION_SOFT_LIMIT) {
+        statusEl.textContent = "Yeme güvenli yaklaşım aranıyor";
+      } else {
         statusEl.textContent = "Otomatik oynuyor";
       }
 
